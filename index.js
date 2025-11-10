@@ -55,6 +55,18 @@ async function run() {
       const result = await foodsCollection.insertOne(newFoods);
       res.send(result);
     });
+    // // Filter foods by rating
+
+    app.get("/foods/top/:limit", async (req, res) => {
+      try {
+        const limit = parseInt(req.params.limit);
+        const cursor = foodsCollection.find().sort({ rating: -1 }).limit(limit);
+        const result = await cursor.toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: error.message });
+      }
+    });
   } finally {
   }
 }
