@@ -67,6 +67,14 @@ async function run() {
         res.status(500).send({ message: error.message });
       }
     });
+    //   Delete by id
+
+    app.delete("/foods/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: id };
+      const result = await foodsCollection.deleteOne(query);
+      res.send(result);
+    });
   } finally {
   }
 }
