@@ -49,6 +49,12 @@ async function run() {
       const result = await foodsCollection.findOne(query);
       res.send(result);
     });
+    // POST new food
+    app.post("/foods", async (req, res) => {
+      const newFoods = req.body;
+      const result = await foodsCollection.insertOne(newFoods);
+      res.send(result);
+    });
   } finally {
   }
 }
