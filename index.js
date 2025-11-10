@@ -75,6 +75,16 @@ async function run() {
       const result = await foodsCollection.deleteOne(query);
       res.send(result);
     });
+    //   patch by Id
+
+    app.patch("/foods/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedFoods = req.body;
+      const query = { _id: id };
+      const updatePhoto = { $set: { photo: updatedFoods.photo } };
+      const result = await foodsCollection.updateOne(query, updatePhoto);
+      res.send(result);
+    });
   } finally {
   }
 }
