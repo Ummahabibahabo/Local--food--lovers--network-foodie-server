@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+
 const app = express();
 const port = 3000;
 
@@ -8,7 +9,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("server is running");
+  res.send("Server is running");
 });
 
 const uri =
@@ -23,73 +24,115 @@ const client = new MongoClient(uri, {
 });
 
 async function run() {
-  try {
-    await client.connect();
+  await client.connect();
 
-    const db = client.db("foddie_db");
-    const foodsCollection = db.collection("foods");
+  const db = client.db("foddie_db");
+  const foodsCollection = db.collection("foods");
+  const reviewsCollection = db.collection("reviews");
 
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
+  console.log("Connected to MongoDB!");
+
+  // ------------------- FOODS ROUTES -------------------
+  app.get("/foods", async (req, res) => {
+    const result = await foodsCollection.find().sort({ rating: -1 }).toArray();
+    res.send(result);
+  });
+
+  app.get("/foods/:id", async (req, res) => {
+    const id = req.params.id;
+    const result = await foodsCollection.findOne({ _id: id });
+    res.send(result);
+  });
+
+  // app.post("/foods", async (req, res) => {
+  //   const newFood = req.body;
+  //   if (!newFood._id) newFood._id = Date.now().toString(); // string ID
+  //   const result = await foodsCollection.insertOne(newFood);
+  //   res.send(result);
+  // });
+
+  app.post("/foods", async (req, res) => {
+    const newFoods = req.body;
+    const result = await foodsCollection.insertOne(newFoods);
+    res.send(result);
+  });
+
+  app.delete("/foods/:id", async (req, res) => {
+    const id = req.params.id;
+    const result = await foodsCollection.deleteOne({ _id: id });
+    res.send(result);
+  });
+
+  app.patch("/foods/:id", async (req, res) => {
+    const id = req.params.id;
+    const { photo } = req.body;
+    const result = await foodsCollection.updateOne(
+      { _id: id },
+      { $set: { photo } }
     );
+    res.send(result);
+  });
 
-    // GET all foods
+  app.get("/latest-foods", async (req, res) => {
+    const result = await foodsCollection
+      .find()
+      .sort({ rating: -1 })
+      .limit(6)
+      .toArray();
+    res.send(result);
+  });
 
-    app.get("/foods", async (req, res) => {
-      const cursor = foodsCollection.find().sort({ rating: -1 });
-      const result = await cursor.toArray();
-      res.send(result);
-    });
-    // GET single food by id
+  app.get("/latest-foods/:id", async (req, res) => {
+    const id = req.params.id;
+    const result = await foodsCollection.findOne({ _id: id });
+    res.send(result);
+  });
 
-    app.get("/foods/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: id };
-      const result = await foodsCollection.findOne(query);
-      res.send(result);
-    });
-    // POST new food
-    app.post("/foods", async (req, res) => {
-      const newFoods = req.body;
-      const result = await foodsCollection.insertOne(newFoods);
-      res.send(result);
-    });
-    // // Filter foods by rating
+  // ------------------- REVIEWS ROUTES (ObjectId _id) -------------------
+  app.get("/reviews", async (req, res) => {
+    const result = await reviewsCollection.find().sort({ date: -1 }).toArray();
+    res.send(result);
+  });
 
-    app.get("/foods/top/:limit", async (req, res) => {
-      try {
-        const limit = parseInt(req.params.limit);
-        const cursor = foodsCollection.find().sort({ rating: -1 }).limit(limit);
-        const result = await cursor.toArray();
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: error.message });
-      }
-    });
-    //   Delete by id
+  // Get single review by string id
+  app.get("/reviews/:id", async (req, res) => {
+    const id = req.params.id;
+    const result = await reviewsCollection.findOne({ _id: id });
+    res.send(result);
+  });
 
-    app.delete("/foods/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: id };
-      const result = await foodsCollection.deleteOne(query);
-      res.send(result);
-    });
-    //   patch by Id
+  // Get reviews by user email
+  app.get("/reviews/user/:email", async (req, res) => {
+    const email = req.params.email;
+    const result = await reviewsCollection
+      .find({ userEmail: email })
+      .sort({ date: -1 })
+      .toArray();
+    res.send(result);
+  });
 
-    app.patch("/foods/:id", async (req, res) => {
-      const id = req.params.id;
-      const updatedFoods = req.body;
-      const query = { _id: id };
-      const updatePhoto = { $set: { photo: updatedFoods.photo } };
-      const result = await foodsCollection.updateOne(query, updatePhoto);
-      res.send(result);
-    });
-  } finally {
-  }
+  // Get reviews by food id
+  app.get("/reviews/food/:foodId", async (req, res) => {
+    const foodId = req.params.foodId;
+    const result = await reviewsCollection
+      .find({ foodId })
+      .sort({ date: -1 })
+      .toArray();
+    res.send(result);
+  });
+
+  // Add new review
+  app.post("/reviews", async (req, res) => {
+    const review = req.body;
+    if (!review._id) review._id = Date.now().toString(); // string ID
+    review.date = new Date();
+    const result = await reviewsCollection.insertOne(review);
+    res.send({ success: true, message: "Review added successfully!", result });
+  });
 }
-run().catch(console.dir);
+
+run();
 
 app.listen(port, () => {
-  console.log(`server is running on port ${port}`);
+  console.log(`Server is running on port ${port}`);
 });
