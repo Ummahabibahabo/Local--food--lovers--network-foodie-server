@@ -129,6 +129,34 @@ async function run() {
     const result = await reviewsCollection.insertOne(review);
     res.send({ success: true, message: "Review added successfully!", result });
   });
+  // Update review by string id
+  app.patch("/reviews/:id", async (req, res) => {
+    const id = req.params.id;
+    const updatedReview = req.body;
+
+    const result = await reviewsCollection.updateOne(
+      { _id: id },
+      { $set: updatedReview }
+    );
+
+    if (result.modifiedCount > 0) {
+      res.send({ success: true, message: "Review updated successfully!" });
+    } else {
+      res.send({ success: false, message: "No review found with this ID." });
+    }
+  });
+
+  // Delete review by string id
+  app.delete("/reviews/:id", async (req, res) => {
+    const id = req.params.id;
+    const result = await reviewsCollection.deleteOne({ _id: id });
+
+    if (result.deletedCount > 0) {
+      res.send({ success: true, message: "Review deleted successfully!" });
+    } else {
+      res.send({ success: false, message: "No review found to delete." });
+    }
+  });
 }
 
 run();
