@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { MongoClient, ServerApiVersion } = require("mongodb");
 
 const app = express();
 const port = 3000;
@@ -26,10 +26,10 @@ const client = new MongoClient(uri, {
 async function run() {
   await client.connect();
 
-  const db = client.db("foddie_db");
+  const db = client.db("foodie_db");
   const foodsCollection = db.collection("foods");
   const reviewsCollection = db.collection("reviews");
-
+  const favoritesCollection = db.collection("favorites");
   console.log("Connected to MongoDB!");
 
   // ------------------- FOODS ROUTES -------------------
@@ -43,13 +43,6 @@ async function run() {
     const result = await foodsCollection.findOne({ _id: id });
     res.send(result);
   });
-
-  // app.post("/foods", async (req, res) => {
-  //   const newFood = req.body;
-  //   if (!newFood._id) newFood._id = Date.now().toString(); // string ID
-  //   const result = await foodsCollection.insertOne(newFood);
-  //   res.send(result);
-  // });
 
   app.post("/foods", async (req, res) => {
     const newFoods = req.body;
@@ -88,12 +81,23 @@ async function run() {
     res.send(result);
   });
 
-  // ------------------- REVIEWS ROUTES (ObjectId _id) -------------------
+  // ------------------- REVIEWS ROUTES
+
+  // Get all reviews OR search by food name
   app.get("/reviews", async (req, res) => {
-    const result = await reviewsCollection.find().sort({ date: -1 }).toArray();
+    const searchText = req.query.search || "";
+
+    const query = searchText
+      ? { foodName: { $regex: searchText, $options: "i" } }
+      : {};
+
+    const result = await reviewsCollection
+      .find(query)
+      .sort({ date: -1 })
+      .toArray();
+
     res.send(result);
   });
-
   // Get single review by string id
   app.get("/reviews/:id", async (req, res) => {
     const id = req.params.id;
@@ -122,12 +126,22 @@ async function run() {
   });
 
   // Add new review
+  // app.post("/reviews", async (req, res) => {
+  //   const review = req.body;
+  //   if (!review._id) review._id = Date.now().toString(); // string ID
+  //   review.date = new Date();
+  //   const result = await reviewsCollection.insertOne(review);
+  //   res.send(result);
+  // });
+
   app.post("/reviews", async (req, res) => {
-    const review = req.body;
-    if (!review._id) review._id = Date.now().toString(); // string ID
-    review.date = new Date();
+    const review = {
+      ...req.body,
+      _id: Date.now().toString(),
+      date: new Date(),
+    };
     const result = await reviewsCollection.insertOne(review);
-    res.send({ success: true, message: "Review added successfully!", result });
+    res.send(result);
   });
   // Update review by string id
   app.patch("/reviews/:id", async (req, res) => {
@@ -139,11 +153,7 @@ async function run() {
       { $set: updatedReview }
     );
 
-    if (result.modifiedCount > 0) {
-      res.send({ success: true, message: "Review updated successfully!" });
-    } else {
-      res.send({ success: false, message: "No review found with this ID." });
-    }
+    res.send(result);
   });
 
   // Delete review by string id
@@ -151,10 +161,79 @@ async function run() {
     const id = req.params.id;
     const result = await reviewsCollection.deleteOne({ _id: id });
 
-    if (result.deletedCount > 0) {
-      res.send({ success: true, message: "Review deleted successfully!" });
+    res.send(result);
+  });
+
+  // ---------- FAVORITES ---------
+
+  // Get all favorites (admin/general)
+  app.get("/favorites", async (req, res) => {
+    const result = await favoritesCollection
+      .find()
+      .sort({ date: -1 })
+      .toArray();
+    res.send(result);
+  });
+
+  // Get all favorites of a specific user
+  app.get("/favorites/user/:userEmail", async (req, res) => {
+    const userEmail = req.params.userEmail;
+    const result = await favoritesCollection
+      .find({ userEmail })
+      .sort({ date: -1 })
+      .toArray();
+    res.send(result);
+  });
+
+  // Add Favorite post
+
+  app.post("/favorites", async (req, res) => {
+    const { userEmail, reviewId } = req.body;
+    if (!userEmail || !reviewId) {
+      res.send({ success: false, message: "Missing info" });
+      return;
+    }
+
+    const exists = await favoritesCollection.findOne({ userEmail, reviewId });
+    if (exists) {
+      res.send({ success: false, message: "Already in favorites" });
+      return;
+    }
+
+    const newFavorite = {
+      ...req.body,
+      _id: Date.now().toString(),
+      date: new Date(),
+    };
+    const result = await favoritesCollection.insertOne(newFavorite);
+
+    if (result.acknowledged) {
+      res.send({ success: true, favorite: newFavorite });
     } else {
-      res.send({ success: false, message: "No review found to delete." });
+      res.send({ success: false, message: "Failed to add" });
+    }
+  });
+
+  // Get single favorite by _id
+  app.get("/favorites/:id", async (req, res) => {
+    const id = req.params.id;
+    const result = await favoritesCollection.findOne({ _id: id });
+    if (result) {
+      res.send({ success: true, favorite: result });
+    } else {
+      res.send({ success: false, message: "Favorite not found" });
+    }
+  });
+
+  // Delete a favorite
+  app.delete("/favorites/:id", async (req, res) => {
+    const id = req.params.id;
+    const result = await favoritesCollection.deleteOne({ _id: id });
+
+    if (result.deletedCount > 0) {
+      res.send({ success: true });
+    } else {
+      res.send({ success: false, message: "Favorite not found" });
     }
   });
 }
